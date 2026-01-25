@@ -1,5 +1,5 @@
-const { useState, useEffect, useMemo, useRef, createElement: h } = React;
-const e = (tag, props, ...children) => h(tag, props, ...children.flat());
+const { useState, useEffect, useMemo, createElement: h } = React;
+const e = (tag, props, ...children) => h(tag, props, ...children.flat().filter(c => c != null));
 
 const DEFAULT_AISLES = [
   { id: 'fruits-legumes', name: 'Fruits & Légumes', color: '#4ade80' },
@@ -73,78 +73,32 @@ const Icons = {
 
 const icon = (name) => e('span', { className: 'icon', dangerouslySetInnerHTML: { __html: Icons[name] } });
 
-function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, confirmText = "Supprimer" }) {
-  if (!isOpen) return null;
-  return e('div', { className: 'modal-overlay', onClick: onClose },
+function ConfirmDialog(props) {
+  if (!props.isOpen) return null;
+  return e('div', { className: 'modal-overlay', onClick: props.onClose },
     e('div', { className: 'modal-content modal-small', onClick: ev => ev.stopPropagation() },
-      e('div', { className: 'modal-header' }, e('h2', null, title)),
+      e('div', { className: 'modal-header' }, e('h2', null, props.title)),
       e('div', { className: 'modal-body' },
-        e('p', null, message),
+        e('p', null, props.message),
         e('div', { className: 'modal-actions' },
-          e('button', { className: 'btn btn-secondary', onClick: onClose }, 'Annuler'),
-          e('button', { className: 'btn btn-danger', onClick: onConfirm }, confirmText)
+          e('button', { className: 'btn btn-secondary', onClick: props.onClose }, 'Annuler'),
+          e('button', { className: 'btn btn-danger', onClick: props.onConfirm }, props.confirmText || 'Supprimer')
         )
       )
     )
   );
 }
 
-function Toast({ message, isVisible }) {
-  return e('div', { className: `toast ${isVisible ? 'visible' : ''}` }, message);
+function Toast(props) {
+  return e('div', { className: 'toast ' + (props.isVisible ? 'visible' : '') }, props.message);
 }
 
-// ==================== RECIPES TAB ====================
-function RecipesTab({ recipes, setRecipes, ingredients, aisles }) {
-  const [editingRecipe, setEditingRecipe] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-
-  const handleSave = (recipe) => {
-    if (recipe.id) { setRecipes(recipes.map(r => r.id === recipe.id ? recipe : r)); }
-    else { setRecipes([...recipes, { ...recipe, id: generateId() }]); }
-    setShowForm(false); setEditingRecipe(null);
-  };
-
-  const handleDelete = (id) => { setRecipes(recipes.filter(r => r.id !== id)); setDeleteConfirm(null); };
-
-  if (showForm) return RecipeForm({ recipe: editingRecipe, ingredients, aisles, onSave: handleSave, onCancel: () => { setShowForm(false); setEditingRecipe(null); } });
-
-  return e('div', { className: 'tab-content' },
-    e('div', { className: 'tab-header' },
-      e('h1', null, 'Mes Recettes'),
-      e('button', { className: 'btn btn-primary btn-with-icon', onClick: () => setShowForm(true) }, icon('plus'), e('span', null, 'Ajouter'))
-    ),
-    recipes.length === 0
-      ? e('div', { className: 'empty-state' },
-          e('div', { className: 'empty-icon' }, icon('recipes')),
-          e('p', null, 'Aucune recette pour le moment'),
-          e('button', { className: 'btn btn-primary', onClick: () => setShowForm(true) }, 'Créer ma première recette')
-        )
-      : e('div', { className: 'recipes-grid' },
-          recipes.map(recipe =>
-            e('div', { key: recipe.id, className: 'recipe-card' },
-              e('div', { className: 'recipe-image' },
-                recipe.image ? e('img', { src: recipe.image, alt: recipe.name }) : e('div', { className: 'recipe-image-placeholder' }, icon('image'))
-              ),
-              e('div', { className: 'recipe-info' },
-                e('h3', null, recipe.name),
-                e('p', { className: 'recipe-ingredients-count' }, recipe.ingredientIds.length + ' ingrédient' + (recipe.ingredientIds.length > 1 ? 's' : ''))
-              ),
-              e('div', { className: 'recipe-actions' },
-                e('button', { className: 'btn-icon', onClick: () => { setEditingRecipe(recipe); setShowForm(true); } }, icon('edit')),
-                e('button', { className: 'btn-icon btn-icon-danger', onClick: () => setDeleteConfirm(recipe.id) }, icon('trash'))
-              )
-            )
-          )
-        ),
-    ConfirmDialog({ isOpen: deleteConfirm !== null, onClose: () => setDeleteConfirm(null), onConfirm: () => handleDelete(deleteConfirm), title: "Supprimer la recette", message: "Êtes-vous sûr de vouloir supprimer cette recette ?" })
-  );
-}
-
-function RecipeForm({ recipe, ingredients, aisles, onSave, onCancel }) {
-  const [name, setName] = useState(recipe?.name || '');
-  const [image, setImage] = useState(recipe?.image || '');
-  const [selectedIngredients, setSelectedIngredients] = useState(recipe?.ingredientIds || []);
+// ==================== RECIPE FORM ====================
+function RecipeForm(props) {
+  const { recipe, ingredients, aisles, onSave, onCancel } = props;
+  const [name, setName] = useState(recipe ? recipe.name : '');
+  const [image, setImage] = useState(recipe ? recipe.image : '');
+  const [selectedIngredients, setSelectedIngredients] = useState(recipe ? recipe.ingredientIds : []);
   const [searchTerm, setSearchTerm] = useState('');
 
   const handleImageChange = (ev) => {
@@ -154,12 +108,12 @@ function RecipeForm({ recipe, ingredients, aisles, onSave, onCancel }) {
 
   const toggleIngredient = (id) => setSelectedIngredients(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
 
-  const filteredIngredients = ingredients.filter(ing => ing.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredIngredients = (ingredients || []).filter(ing => ing.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const groupedIngredients = useMemo(() => {
     const groups = {};
     filteredIngredients.forEach(ing => {
-      const aisle = aisles.find(a => a.id === ing.aisleId);
+      const aisle = (aisles || []).find(a => a.id === ing.aisleId);
       const aisleName = aisle ? aisle.name : 'Autres';
       if (!groups[aisleName]) groups[aisleName] = [];
       groups[aisleName].push(ing);
@@ -170,7 +124,7 @@ function RecipeForm({ recipe, ingredients, aisles, onSave, onCancel }) {
   const handleSubmit = (ev) => {
     ev.preventDefault();
     if (!name.trim()) return;
-    onSave({ id: recipe?.id, name: name.trim(), image, ingredientIds: selectedIngredients });
+    onSave({ id: recipe ? recipe.id : null, name: name.trim(), image, ingredientIds: selectedIngredients });
   };
 
   return e('div', { className: 'form-page' },
@@ -199,20 +153,20 @@ function RecipeForm({ recipe, ingredients, aisles, onSave, onCancel }) {
       ),
       e('div', { className: 'form-group' },
         e('label', null, 'Ingrédients (' + selectedIngredients.length + ' sélectionné' + (selectedIngredients.length > 1 ? 's' : '') + ')'),
-        e('input', { type: 'text', value: searchTerm, onChange: ev => setSearchTerm(ev.target.value), placeholder: 'Rechercher un ingrédient...', className: 'search-input' }),
+        e('input', { type: 'text', value: searchTerm, onChange: ev => setSearchTerm(ev.target.value), placeholder: 'Rechercher...', className: 'search-input' }),
         e('div', { className: 'ingredients-selector' },
-          Object.entries(groupedIngredients).map(([aisleName, items]) =>
-            e('div', { key: aisleName, className: 'ingredient-group' },
+          Object.entries(groupedIngredients).map(function([aisleName, items]) {
+            return e('div', { key: aisleName, className: 'ingredient-group' },
               e('h4', null, aisleName),
               e('div', { className: 'ingredient-chips' },
-                items.map(ing =>
-                  e('button', { key: ing.id, type: 'button', className: 'chip ' + (selectedIngredients.includes(ing.id) ? 'selected' : ''), onClick: () => toggleIngredient(ing.id) },
-                    ing.name, selectedIngredients.includes(ing.id) && e('span', { className: 'chip-check' }, icon('check'))
-                  )
-                )
+                items.map(function(ing) {
+                  return e('button', { key: ing.id, type: 'button', className: 'chip ' + (selectedIngredients.includes(ing.id) ? 'selected' : ''), onClick: function() { toggleIngredient(ing.id); } },
+                    ing.name, selectedIngredients.includes(ing.id) ? e('span', { className: 'chip-check' }, icon('check')) : null
+                  );
+                })
               )
-            )
-          )
+            );
+          })
         )
       ),
       e('div', { className: 'form-actions' },
@@ -223,19 +177,192 @@ function RecipeForm({ recipe, ingredients, aisles, onSave, onCancel }) {
   );
 }
 
+// ==================== RECIPES TAB ====================
+function RecipesTab(props) {
+  const { recipes, setRecipes, ingredients, aisles } = props;
+  const [editingRecipe, setEditingRecipe] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  const handleSave = (recipe) => {
+    if (recipe.id) { setRecipes(recipes.map(r => r.id === recipe.id ? recipe : r)); }
+    else { setRecipes([...recipes, { ...recipe, id: generateId() }]); }
+    setShowForm(false); setEditingRecipe(null);
+  };
+
+  const handleDelete = (id) => { setRecipes(recipes.filter(r => r.id !== id)); setDeleteConfirm(null); };
+
+  if (showForm) {
+    return h(RecipeForm, { recipe: editingRecipe, ingredients: ingredients, aisles: aisles, onSave: handleSave, onCancel: function() { setShowForm(false); setEditingRecipe(null); } });
+  }
+
+  return e('div', { className: 'tab-content' },
+    e('div', { className: 'tab-header' },
+      e('h1', null, 'Mes Recettes'),
+      e('button', { className: 'btn btn-primary btn-with-icon', onClick: function() { setShowForm(true); } }, icon('plus'), e('span', null, 'Ajouter'))
+    ),
+    recipes.length === 0
+      ? e('div', { className: 'empty-state' },
+          e('div', { className: 'empty-icon' }, icon('recipes')),
+          e('p', null, 'Aucune recette pour le moment'),
+          e('button', { className: 'btn btn-primary', onClick: function() { setShowForm(true); } }, 'Créer ma première recette')
+        )
+      : e('div', { className: 'recipes-grid' },
+          recipes.map(function(recipe) {
+            return e('div', { key: recipe.id, className: 'recipe-card' },
+              e('div', { className: 'recipe-image' },
+                recipe.image ? e('img', { src: recipe.image, alt: recipe.name }) : e('div', { className: 'recipe-image-placeholder' }, icon('image'))
+              ),
+              e('div', { className: 'recipe-info' },
+                e('h3', null, recipe.name),
+                e('p', { className: 'recipe-ingredients-count' }, recipe.ingredientIds.length + ' ingrédient' + (recipe.ingredientIds.length > 1 ? 's' : ''))
+              ),
+              e('div', { className: 'recipe-actions' },
+                e('button', { className: 'btn-icon', onClick: function() { setEditingRecipe(recipe); setShowForm(true); } }, icon('edit')),
+                e('button', { className: 'btn-icon btn-icon-danger', onClick: function() { setDeleteConfirm(recipe.id); } }, icon('trash'))
+              )
+            );
+          })
+        ),
+    h(ConfirmDialog, { isOpen: deleteConfirm !== null, onClose: function() { setDeleteConfirm(null); }, onConfirm: function() { handleDelete(deleteConfirm); }, title: "Supprimer la recette", message: "Êtes-vous sûr de vouloir supprimer cette recette ?" })
+  );
+}
+
+// ==================== INGREDIENT FORM ====================
+function IngredientForm(props) {
+  const { ingredient, aisles, onSave, onCancel } = props;
+  const [name, setName] = useState(ingredient ? ingredient.name : '');
+  const [aisleId, setAisleId] = useState(ingredient ? ingredient.aisleId : (aisles[0] ? aisles[0].id : ''));
+  
+  const handleSubmit = (ev) => { 
+    ev.preventDefault(); 
+    if (!name.trim() || !aisleId) return; 
+    onSave({ id: ingredient ? ingredient.id : null, name: name.trim(), aisleId: aisleId }); 
+  };
+
+  return e('div', { className: 'form-page' },
+    e('div', { className: 'form-header' }, 
+      e('button', { className: 'btn-icon', onClick: onCancel }, icon('back')), 
+      e('h1', null, ingredient ? "Modifier l'ingrédient" : 'Nouvel ingrédient')
+    ),
+    e('form', { onSubmit: handleSubmit },
+      e('div', { className: 'form-group' }, 
+        e('label', null, 'Nom'), 
+        e('input', { type: 'text', value: name, onChange: function(ev) { setName(ev.target.value); }, placeholder: 'Ex: Tomates cerises', required: true })
+      ),
+      e('div', { className: 'form-group' }, 
+        e('label', null, 'Rayon'), 
+        e('select', { value: aisleId, onChange: function(ev) { setAisleId(ev.target.value); }, required: true }, 
+          aisles.map(function(aisle) { return e('option', { key: aisle.id, value: aisle.id }, aisle.name); })
+        )
+      ),
+      e('div', { className: 'form-actions' }, 
+        e('button', { type: 'button', className: 'btn btn-secondary', onClick: onCancel }, 'Annuler'), 
+        e('button', { type: 'submit', className: 'btn btn-primary', disabled: !name.trim() }, ingredient ? 'Enregistrer' : 'Créer')
+      )
+    )
+  );
+}
+
+// ==================== AISLE FORM ====================
+function AisleForm(props) {
+  const { aisle, onSave, onCancel } = props;
+  const [name, setName] = useState(aisle ? aisle.name : '');
+  const [color, setColor] = useState(aisle ? aisle.color : '#60a5fa');
+  const colors = ['#4ade80', '#f87171', '#fbbf24', '#a78bfa', '#60a5fa', '#2dd4bf', '#f59e0b', '#ec4899', '#94a3b8', '#8b5cf6'];
+  
+  const handleSubmit = (ev) => { 
+    ev.preventDefault(); 
+    if (!name.trim()) return; 
+    onSave({ id: aisle ? aisle.id : null, name: name.trim(), color: color }); 
+  };
+
+  return e('div', { className: 'form-page' },
+    e('div', { className: 'form-header' }, 
+      e('button', { className: 'btn-icon', onClick: onCancel }, icon('back')), 
+      e('h1', null, aisle ? 'Modifier le rayon' : 'Nouveau rayon')
+    ),
+    e('form', { onSubmit: handleSubmit },
+      e('div', { className: 'form-group' }, 
+        e('label', null, 'Nom du rayon'), 
+        e('input', { type: 'text', value: name, onChange: function(ev) { setName(ev.target.value); }, placeholder: 'Ex: Fruits & Légumes', required: true })
+      ),
+      e('div', { className: 'form-group' }, 
+        e('label', null, 'Couleur'),
+        e('div', { className: 'color-picker' }, 
+          colors.map(function(c) { 
+            return e('button', { key: c, type: 'button', className: 'color-option ' + (color === c ? 'selected' : ''), style: { backgroundColor: c }, onClick: function() { setColor(c); } }); 
+          })
+        )
+      ),
+      e('div', { className: 'form-actions' }, 
+        e('button', { type: 'button', className: 'btn btn-secondary', onClick: onCancel }, 'Annuler'), 
+        e('button', { type: 'submit', className: 'btn btn-primary', disabled: !name.trim() }, aisle ? 'Enregistrer' : 'Créer')
+      )
+    )
+  );
+}
+
+// ==================== AISLE MANAGER ====================
+function AisleManager(props) {
+  const { aisles, setAisles, ingredients, onBack } = props;
+  const [editingAisle, setEditingAisle] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  
+  const getIngredientCount = (aisleId) => (ingredients || []).filter(i => i.aisleId === aisleId).length;
+  
+  const handleSave = (aisle) => { 
+    if (aisle.id) { setAisles(aisles.map(a => a.id === aisle.id ? aisle : a)); } 
+    else { setAisles([...aisles, { ...aisle, id: generateId() }]); } 
+    setShowForm(false); setEditingAisle(null); 
+  };
+  
+  const handleDelete = (id) => { setAisles(aisles.filter(a => a.id !== id)); setDeleteConfirm(null); };
+
+  if (showForm) {
+    return h(AisleForm, { aisle: editingAisle, onSave: handleSave, onCancel: function() { setShowForm(false); setEditingAisle(null); } });
+  }
+
+  return e('div', { className: 'form-page' },
+    e('div', { className: 'form-header' }, 
+      e('button', { className: 'btn-icon', onClick: onBack }, icon('back')), 
+      e('h1', null, 'Gérer les rayons'), 
+      e('button', { className: 'btn btn-primary btn-with-icon', onClick: function() { setShowForm(true); } }, icon('plus'))
+    ),
+    e('div', { className: 'aisles-list' },
+      aisles.map(function(aisle) {
+        return e('div', { key: aisle.id, className: 'aisle-manager-item', style: { '--aisle-color': aisle.color } },
+          e('div', { className: 'aisle-manager-info' }, 
+            e('span', { className: 'aisle-dot' }), 
+            e('span', { className: 'aisle-name' }, aisle.name), 
+            e('span', { className: 'aisle-count' }, getIngredientCount(aisle.id) + ' ingrédients')
+          ),
+          e('div', { className: 'item-actions' },
+            e('button', { className: 'btn-icon-small', onClick: function() { setEditingAisle(aisle); setShowForm(true); } }, icon('edit')),
+            e('button', { className: 'btn-icon-small btn-icon-danger', onClick: function() { setDeleteConfirm(aisle.id); }, disabled: getIngredientCount(aisle.id) > 0 }, icon('trash'))
+          )
+        );
+      })
+    ),
+    h(ConfirmDialog, { isOpen: deleteConfirm !== null, onClose: function() { setDeleteConfirm(null); }, onConfirm: function() { handleDelete(deleteConfirm); }, title: "Supprimer le rayon", message: "Êtes-vous sûr ?" })
+  );
+}
+
 // ==================== INGREDIENTS TAB ====================
-function IngredientsTab({ ingredients, setIngredients, aisles, setAisles }) {
+function IngredientsTab(props) {
+  const { ingredients, setIngredients, aisles, setAisles } = props;
   const [showForm, setShowForm] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showAisleManager, setShowAisleManager] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredIngredients = ingredients.filter(ing => ing.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredIngredients = (ingredients || []).filter(ing => ing.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const groupedIngredients = useMemo(() => {
     const groups = {};
-    aisles.forEach(aisle => { groups[aisle.id] = { aisle, items: filteredIngredients.filter(ing => ing.aisleId === aisle.id) }; });
+    (aisles || []).forEach(aisle => { groups[aisle.id] = { aisle: aisle, items: filteredIngredients.filter(ing => ing.aisleId === aisle.id) }; });
     return groups;
   }, [filteredIngredients, aisles]);
 
@@ -247,111 +374,123 @@ function IngredientsTab({ ingredients, setIngredients, aisles, setAisles }) {
 
   const handleDelete = (id) => { setIngredients(ingredients.filter(i => i.id !== id)); setDeleteConfirm(null); };
 
-  if (showAisleManager) return AisleManager({ aisles, setAisles, ingredients, onBack: () => setShowAisleManager(false) });
-  if (showForm) return IngredientForm({ ingredient: editingIngredient, aisles, onSave: handleSave, onCancel: () => { setShowForm(false); setEditingIngredient(null); } });
+  if (showAisleManager) {
+    return h(AisleManager, { aisles: aisles, setAisles: setAisles, ingredients: ingredients, onBack: function() { setShowAisleManager(false); } });
+  }
+  
+  if (showForm) {
+    return h(IngredientForm, { ingredient: editingIngredient, aisles: aisles, onSave: handleSave, onCancel: function() { setShowForm(false); setEditingIngredient(null); } });
+  }
 
   return e('div', { className: 'tab-content' },
     e('div', { className: 'tab-header' },
       e('h1', null, 'Ingrédients'),
       e('div', { className: 'header-actions' },
-        e('button', { className: 'btn btn-secondary btn-with-icon', onClick: () => setShowAisleManager(true) }, icon('settings'), e('span', null, 'Rayons')),
-        e('button', { className: 'btn btn-primary btn-with-icon', onClick: () => setShowForm(true) }, icon('plus'), e('span', null, 'Ajouter'))
+        e('button', { className: 'btn btn-secondary btn-with-icon', onClick: function() { setShowAisleManager(true); } }, icon('settings'), e('span', null, 'Rayons')),
+        e('button', { className: 'btn btn-primary btn-with-icon', onClick: function() { setShowForm(true); } }, icon('plus'), e('span', null, 'Ajouter'))
       )
     ),
-    e('input', { type: 'text', value: searchTerm, onChange: ev => setSearchTerm(ev.target.value), placeholder: 'Rechercher un ingrédient...', className: 'search-input' }),
+    e('input', { type: 'text', value: searchTerm, onChange: function(ev) { setSearchTerm(ev.target.value); }, placeholder: 'Rechercher un ingrédient...', className: 'search-input' }),
     ingredients.length === 0
       ? e('div', { className: 'empty-state' },
           e('div', { className: 'empty-icon' }, icon('ingredients')),
           e('p', null, 'Aucun ingrédient'),
-          e('button', { className: 'btn btn-primary', onClick: () => setShowForm(true) }, 'Ajouter un ingrédient')
+          e('button', { className: 'btn btn-primary', onClick: function() { setShowForm(true); } }, 'Ajouter un ingrédient')
         )
       : e('div', { className: 'ingredients-list' },
-          Object.entries(groupedIngredients).map(([aisleId, { aisle, items }]) => {
-            if (items.length === 0) return null;
+          Object.entries(groupedIngredients).map(function([aisleId, data]) {
+            if (data.items.length === 0) return null;
             return e('div', { key: aisleId, className: 'aisle-section' },
-              e('div', { className: 'aisle-header', style: { '--aisle-color': aisle.color } },
-                e('span', { className: 'aisle-dot' }), e('h3', null, aisle.name), e('span', { className: 'aisle-count' }, items.length)
+              e('div', { className: 'aisle-header', style: { '--aisle-color': data.aisle.color } },
+                e('span', { className: 'aisle-dot' }), e('h3', null, data.aisle.name), e('span', { className: 'aisle-count' }, data.items.length)
               ),
               e('div', { className: 'aisle-items' },
-                items.map(ingredient =>
-                  e('div', { key: ingredient.id, className: 'ingredient-item' },
+                data.items.map(function(ingredient) {
+                  return e('div', { key: ingredient.id, className: 'ingredient-item' },
                     e('span', null, ingredient.name),
                     e('div', { className: 'item-actions' },
-                      e('button', { className: 'btn-icon-small', onClick: () => { setEditingIngredient(ingredient); setShowForm(true); } }, icon('edit')),
-                      e('button', { className: 'btn-icon-small btn-icon-danger', onClick: () => setDeleteConfirm(ingredient.id) }, icon('trash'))
+                      e('button', { className: 'btn-icon-small', onClick: function() { setEditingIngredient(ingredient); setShowForm(true); } }, icon('edit')),
+                      e('button', { className: 'btn-icon-small btn-icon-danger', onClick: function() { setDeleteConfirm(ingredient.id); } }, icon('trash'))
                     )
-                  )
-                )
+                  );
+                })
               )
             );
           })
         ),
-    ConfirmDialog({ isOpen: deleteConfirm !== null, onClose: () => setDeleteConfirm(null), onConfirm: () => handleDelete(deleteConfirm), title: "Supprimer l'ingrédient", message: "Êtes-vous sûr ?" })
+    h(ConfirmDialog, { isOpen: deleteConfirm !== null, onClose: function() { setDeleteConfirm(null); }, onConfirm: function() { handleDelete(deleteConfirm); }, title: "Supprimer l'ingrédient", message: "Êtes-vous sûr ?" })
   );
 }
 
-function IngredientForm({ ingredient, aisles, onSave, onCancel }) {
-  const [name, setName] = useState(ingredient?.name || '');
-  const [aisleId, setAisleId] = useState(ingredient?.aisleId || aisles[0]?.id || '');
-  const handleSubmit = (ev) => { ev.preventDefault(); if (!name.trim() || !aisleId) return; onSave({ id: ingredient?.id, name: name.trim(), aisleId }); };
+// ==================== PRODUCT FORM ====================
+function ProductForm(props) {
+  const { product, groups, onSave, onCancel } = props;
+  const [name, setName] = useState(product ? product.name : '');
+  const [groupId, setGroupId] = useState(product ? (product.groupId || '') : '');
+  
+  const handleSubmit = (ev) => { 
+    ev.preventDefault(); 
+    if (!name.trim()) return; 
+    onSave({ id: product ? product.id : null, name: name.trim(), groupId: groupId || null }); 
+  };
 
   return e('div', { className: 'form-page' },
-    e('div', { className: 'form-header' }, e('button', { className: 'btn-icon', onClick: onCancel }, icon('back')), e('h1', null, ingredient ? "Modifier l'ingrédient" : 'Nouvel ingrédient')),
+    e('div', { className: 'form-header' }, 
+      e('button', { className: 'btn-icon', onClick: onCancel }, icon('back')), 
+      e('h1', null, product ? 'Modifier le produit' : 'Nouveau produit')
+    ),
     e('form', { onSubmit: handleSubmit },
-      e('div', { className: 'form-group' }, e('label', null, 'Nom'), e('input', { type: 'text', value: name, onChange: ev => setName(ev.target.value), placeholder: 'Ex: Tomates cerises', required: true })),
-      e('div', { className: 'form-group' }, e('label', null, 'Rayon'), e('select', { value: aisleId, onChange: ev => setAisleId(ev.target.value), required: true }, aisles.map(aisle => e('option', { key: aisle.id, value: aisle.id }, aisle.name)))),
-      e('div', { className: 'form-actions' }, e('button', { type: 'button', className: 'btn btn-secondary', onClick: onCancel }, 'Annuler'), e('button', { type: 'submit', className: 'btn btn-primary', disabled: !name.trim() }, ingredient ? 'Enregistrer' : 'Créer'))
+      e('div', { className: 'form-group' }, 
+        e('label', null, 'Nom'), 
+        e('input', { type: 'text', value: name, onChange: function(ev) { setName(ev.target.value); }, placeholder: 'Ex: Papier toilette', required: true })
+      ),
+      e('div', { className: 'form-group' }, 
+        e('label', null, 'Groupe (optionnel)'),
+        e('select', { value: groupId, onChange: function(ev) { setGroupId(ev.target.value); } },
+          e('option', { value: '' }, 'Sans groupe'),
+          (groups || []).map(function(group) { return e('option', { key: group.id, value: group.id }, group.name); })
+        )
+      ),
+      e('div', { className: 'form-actions' }, 
+        e('button', { type: 'button', className: 'btn btn-secondary', onClick: onCancel }, 'Annuler'), 
+        e('button', { type: 'submit', className: 'btn btn-primary', disabled: !name.trim() }, product ? 'Enregistrer' : 'Créer')
+      )
     )
   );
 }
 
-function AisleManager({ aisles, setAisles, ingredients, onBack }) {
-  const [editingAisle, setEditingAisle] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const getIngredientCount = (aisleId) => ingredients.filter(i => i.aisleId === aisleId).length;
-  const handleSave = (aisle) => { if (aisle.id) { setAisles(aisles.map(a => a.id === aisle.id ? aisle : a)); } else { setAisles([...aisles, { ...aisle, id: generateId() }]); } setShowForm(false); setEditingAisle(null); };
-  const handleDelete = (id) => { setAisles(aisles.filter(a => a.id !== id)); setDeleteConfirm(null); };
-
-  if (showForm) return AisleForm({ aisle: editingAisle, onSave: handleSave, onCancel: () => { setShowForm(false); setEditingAisle(null); } });
+// ==================== GROUP FORM ====================
+function GroupForm(props) {
+  const { group, onSave, onCancel } = props;
+  const [name, setName] = useState(group ? group.name : '');
+  
+  const handleSubmit = (ev) => { 
+    ev.preventDefault(); 
+    if (!name.trim()) return; 
+    onSave({ id: group ? group.id : null, name: name.trim() }); 
+  };
 
   return e('div', { className: 'form-page' },
-    e('div', { className: 'form-header' }, e('button', { className: 'btn-icon', onClick: onBack }, icon('back')), e('h1', null, 'Gérer les rayons'), e('button', { className: 'btn btn-primary btn-with-icon', onClick: () => setShowForm(true) }, icon('plus'))),
-    e('div', { className: 'aisles-list' },
-      aisles.map(aisle =>
-        e('div', { key: aisle.id, className: 'aisle-manager-item', style: { '--aisle-color': aisle.color } },
-          e('div', { className: 'aisle-manager-info' }, e('span', { className: 'aisle-dot' }), e('span', { className: 'aisle-name' }, aisle.name), e('span', { className: 'aisle-count' }, getIngredientCount(aisle.id) + ' ingrédients')),
-          e('div', { className: 'item-actions' },
-            e('button', { className: 'btn-icon-small', onClick: () => { setEditingAisle(aisle); setShowForm(true); } }, icon('edit')),
-            e('button', { className: 'btn-icon-small btn-icon-danger', onClick: () => setDeleteConfirm(aisle.id), disabled: getIngredientCount(aisle.id) > 0 }, icon('trash'))
-          )
-        )
-      )
+    e('div', { className: 'form-header' }, 
+      e('button', { className: 'btn-icon', onClick: onCancel }, icon('back')), 
+      e('h1', null, group ? 'Modifier le groupe' : 'Nouveau groupe')
     ),
-    ConfirmDialog({ isOpen: deleteConfirm !== null, onClose: () => setDeleteConfirm(null), onConfirm: () => handleDelete(deleteConfirm), title: "Supprimer le rayon", message: "Êtes-vous sûr ?" })
-  );
-}
-
-function AisleForm({ aisle, onSave, onCancel }) {
-  const [name, setName] = useState(aisle?.name || '');
-  const [color, setColor] = useState(aisle?.color || '#60a5fa');
-  const colors = ['#4ade80', '#f87171', '#fbbf24', '#a78bfa', '#60a5fa', '#2dd4bf', '#f59e0b', '#ec4899', '#94a3b8', '#8b5cf6'];
-  const handleSubmit = (ev) => { ev.preventDefault(); if (!name.trim()) return; onSave({ id: aisle?.id, name: name.trim(), color }); };
-
-  return e('div', { className: 'form-page' },
-    e('div', { className: 'form-header' }, e('button', { className: 'btn-icon', onClick: onCancel }, icon('back')), e('h1', null, aisle ? 'Modifier le rayon' : 'Nouveau rayon')),
     e('form', { onSubmit: handleSubmit },
-      e('div', { className: 'form-group' }, e('label', null, 'Nom du rayon'), e('input', { type: 'text', value: name, onChange: ev => setName(ev.target.value), placeholder: 'Ex: Fruits & Légumes', required: true })),
-      e('div', { className: 'form-group' }, e('label', null, 'Couleur'),
-        e('div', { className: 'color-picker' }, colors.map(c => e('button', { key: c, type: 'button', className: 'color-option ' + (color === c ? 'selected' : ''), style: { backgroundColor: c }, onClick: () => setColor(c) })))
+      e('div', { className: 'form-group' }, 
+        e('label', null, 'Nom du groupe'), 
+        e('input', { type: 'text', value: name, onChange: function(ev) { setName(ev.target.value); }, placeholder: 'Ex: Entretien', required: true })
       ),
-      e('div', { className: 'form-actions' }, e('button', { type: 'button', className: 'btn btn-secondary', onClick: onCancel }, 'Annuler'), e('button', { type: 'submit', className: 'btn btn-primary', disabled: !name.trim() }, aisle ? 'Enregistrer' : 'Créer'))
+      e('div', { className: 'form-actions' }, 
+        e('button', { type: 'button', className: 'btn btn-secondary', onClick: onCancel }, 'Annuler'), 
+        e('button', { type: 'submit', className: 'btn btn-primary', disabled: !name.trim() }, group ? 'Enregistrer' : 'Créer')
+      )
     )
   );
 }
 
 // ==================== RECURRING TAB ====================
-function RecurringTab({ recurringProducts, setRecurringProducts, productGroups, setProductGroups }) {
+function RecurringTab(props) {
+  const { recurringProducts, setRecurringProducts, productGroups, setProductGroups } = props;
   const [showProductForm, setShowProductForm] = useState(false);
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -359,57 +498,64 @@ function RecurringTab({ recurringProducts, setRecurringProducts, productGroups, 
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteType, setDeleteType] = useState(null);
 
+  const safeProducts = recurringProducts || [];
+  const safeGroups = productGroups || [];
+
   const groupedProducts = useMemo(() => {
     const groups = { ungrouped: [] };
-    productGroups.forEach(g => { groups[g.id] = []; });
-    recurringProducts.forEach(product => {
+    safeGroups.forEach(g => { groups[g.id] = []; });
+    safeProducts.forEach(product => {
       if (product.groupId && groups[product.groupId]) { groups[product.groupId].push(product); }
       else { groups.ungrouped.push(product); }
     });
     return groups;
-  }, [recurringProducts, productGroups]);
+  }, [safeProducts, safeGroups]);
 
   const handleSaveProduct = (product) => {
-    if (product.id) { setRecurringProducts(recurringProducts.map(p => p.id === product.id ? product : p)); }
-    else { setRecurringProducts([...recurringProducts, { ...product, id: generateId() }]); }
+    if (product.id) { setRecurringProducts(safeProducts.map(p => p.id === product.id ? product : p)); }
+    else { setRecurringProducts([...safeProducts, { ...product, id: generateId() }]); }
     setShowProductForm(false); setEditingProduct(null);
   };
 
   const handleSaveGroup = (group) => {
-    if (group.id) { setProductGroups(productGroups.map(g => g.id === group.id ? group : g)); }
-    else { setProductGroups([...productGroups, { ...group, id: generateId() }]); }
+    if (group.id) { setProductGroups(safeGroups.map(g => g.id === group.id ? group : g)); }
+    else { setProductGroups([...safeGroups, { ...group, id: generateId() }]); }
     setShowGroupForm(false); setEditingGroup(null);
   };
 
   const handleDelete = () => {
-    if (deleteType === 'product') { setRecurringProducts(recurringProducts.filter(p => p.id !== deleteConfirm)); }
+    if (deleteType === 'product') { setRecurringProducts(safeProducts.filter(p => p.id !== deleteConfirm)); }
     else if (deleteType === 'group') {
-      setRecurringProducts(recurringProducts.map(p => p.groupId === deleteConfirm ? { ...p, groupId: null } : p));
-      setProductGroups(productGroups.filter(g => g.id !== deleteConfirm));
+      setRecurringProducts(safeProducts.map(p => p.groupId === deleteConfirm ? { ...p, groupId: null } : p));
+      setProductGroups(safeGroups.filter(g => g.id !== deleteConfirm));
     }
     setDeleteConfirm(null); setDeleteType(null);
   };
 
-  if (showProductForm) return ProductForm({ product: editingProduct, groups: productGroups, onSave: handleSaveProduct, onCancel: () => { setShowProductForm(false); setEditingProduct(null); } });
-  if (showGroupForm) return GroupForm({ group: editingGroup, onSave: handleSaveGroup, onCancel: () => { setShowGroupForm(false); setEditingGroup(null); } });
+  if (showProductForm) {
+    return h(ProductForm, { product: editingProduct, groups: safeGroups, onSave: handleSaveProduct, onCancel: function() { setShowProductForm(false); setEditingProduct(null); } });
+  }
+  if (showGroupForm) {
+    return h(GroupForm, { group: editingGroup, onSave: handleSaveGroup, onCancel: function() { setShowGroupForm(false); setEditingGroup(null); } });
+  }
 
   return e('div', { className: 'tab-content' },
     e('div', { className: 'tab-header' },
       e('h1', null, 'Récurrents'),
       e('div', { className: 'header-actions' },
-        e('button', { className: 'btn btn-secondary btn-with-icon', onClick: () => setShowGroupForm(true) }, icon('plus'), e('span', null, 'Groupe')),
-        e('button', { className: 'btn btn-primary btn-with-icon', onClick: () => setShowProductForm(true) }, icon('plus'), e('span', null, 'Produit'))
+        e('button', { className: 'btn btn-secondary btn-with-icon', onClick: function() { setShowGroupForm(true); } }, icon('plus'), e('span', null, 'Groupe')),
+        e('button', { className: 'btn btn-primary btn-with-icon', onClick: function() { setShowProductForm(true); } }, icon('plus'), e('span', null, 'Produit'))
       )
     ),
-    recurringProducts.length === 0
+    safeProducts.length === 0
       ? e('div', { className: 'empty-state' },
           e('div', { className: 'empty-icon' }, icon('recurring')),
           e('p', null, 'Aucun produit récurrent'),
           e('p', { className: 'empty-hint' }, 'Ces produits seront suggérés lors de la génération de votre liste.'),
-          e('button', { className: 'btn btn-primary', onClick: () => setShowProductForm(true) }, 'Ajouter un produit')
+          e('button', { className: 'btn btn-primary', onClick: function() { setShowProductForm(true); } }, 'Ajouter un produit')
         )
       : e('div', { className: 'products-list' },
-          productGroups.map(group => {
+          safeGroups.map(function(group) {
             const products = groupedProducts[group.id] || [];
             if (products.length === 0) return null;
             return e('div', { key: group.id, className: 'product-group' },
@@ -417,118 +563,92 @@ function RecurringTab({ recurringProducts, setRecurringProducts, productGroups, 
                 e('div', { className: 'drag-handle' }, icon('drag')),
                 e('h3', null, group.name),
                 e('div', { className: 'item-actions' },
-                  e('button', { className: 'btn-icon-small', onClick: () => { setEditingGroup(group); setShowGroupForm(true); } }, icon('edit')),
-                  e('button', { className: 'btn-icon-small btn-icon-danger', onClick: () => { setDeleteConfirm(group.id); setDeleteType('group'); } }, icon('trash'))
+                  e('button', { className: 'btn-icon-small', onClick: function() { setEditingGroup(group); setShowGroupForm(true); } }, icon('edit')),
+                  e('button', { className: 'btn-icon-small btn-icon-danger', onClick: function() { setDeleteConfirm(group.id); setDeleteType('group'); } }, icon('trash'))
                 )
               ),
               e('div', { className: 'group-items' },
-                products.map(product =>
-                  e('div', { key: product.id, className: 'product-item' },
+                products.map(function(product) {
+                  return e('div', { key: product.id, className: 'product-item' },
                     e('span', null, product.name),
                     e('div', { className: 'item-actions' },
-                      e('button', { className: 'btn-icon-small', onClick: () => { setEditingProduct(product); setShowProductForm(true); } }, icon('edit')),
-                      e('button', { className: 'btn-icon-small btn-icon-danger', onClick: () => { setDeleteConfirm(product.id); setDeleteType('product'); } }, icon('trash'))
+                      e('button', { className: 'btn-icon-small', onClick: function() { setEditingProduct(product); setShowProductForm(true); } }, icon('edit')),
+                      e('button', { className: 'btn-icon-small btn-icon-danger', onClick: function() { setDeleteConfirm(product.id); setDeleteType('product'); } }, icon('trash'))
                     )
-                  )
-                )
+                  );
+                })
               )
             );
           }),
-          groupedProducts.ungrouped.length > 0 && e('div', { className: 'product-group' },
+          groupedProducts.ungrouped.length > 0 ? e('div', { className: 'product-group' },
             e('div', { className: 'group-header' }, e('h3', null, 'Sans groupe')),
             e('div', { className: 'group-items' },
-              groupedProducts.ungrouped.map(product =>
-                e('div', { key: product.id, className: 'product-item' },
+              groupedProducts.ungrouped.map(function(product) {
+                return e('div', { key: product.id, className: 'product-item' },
                   e('span', null, product.name),
                   e('div', { className: 'item-actions' },
-                    e('button', { className: 'btn-icon-small', onClick: () => { setEditingProduct(product); setShowProductForm(true); } }, icon('edit')),
-                    e('button', { className: 'btn-icon-small btn-icon-danger', onClick: () => { setDeleteConfirm(product.id); setDeleteType('product'); } }, icon('trash'))
+                    e('button', { className: 'btn-icon-small', onClick: function() { setEditingProduct(product); setShowProductForm(true); } }, icon('edit')),
+                    e('button', { className: 'btn-icon-small btn-icon-danger', onClick: function() { setDeleteConfirm(product.id); setDeleteType('product'); } }, icon('trash'))
                   )
-                )
-              )
+                );
+              })
             )
-          )
+          ) : null
         ),
-    ConfirmDialog({ isOpen: deleteConfirm !== null, onClose: () => { setDeleteConfirm(null); setDeleteType(null); }, onConfirm: handleDelete, title: deleteType === 'group' ? 'Supprimer le groupe' : 'Supprimer le produit', message: deleteType === 'group' ? 'Les produits seront conservés sans groupe.' : 'Êtes-vous sûr ?' })
-  );
-}
-
-function ProductForm({ product, groups, onSave, onCancel }) {
-  const [name, setName] = useState(product?.name || '');
-  const [groupId, setGroupId] = useState(product?.groupId || '');
-  const handleSubmit = (ev) => { ev.preventDefault(); if (!name.trim()) return; onSave({ id: product?.id, name: name.trim(), groupId: groupId || null }); };
-
-  return e('div', { className: 'form-page' },
-    e('div', { className: 'form-header' }, e('button', { className: 'btn-icon', onClick: onCancel }, icon('back')), e('h1', null, product ? 'Modifier le produit' : 'Nouveau produit')),
-    e('form', { onSubmit: handleSubmit },
-      e('div', { className: 'form-group' }, e('label', null, 'Nom'), e('input', { type: 'text', value: name, onChange: ev => setName(ev.target.value), placeholder: 'Ex: Papier toilette', required: true })),
-      e('div', { className: 'form-group' }, e('label', null, 'Groupe (optionnel)'),
-        e('select', { value: groupId, onChange: ev => setGroupId(ev.target.value) },
-          e('option', { value: '' }, 'Sans groupe'),
-          groups.map(group => e('option', { key: group.id, value: group.id }, group.name))
-        )
-      ),
-      e('div', { className: 'form-actions' }, e('button', { type: 'button', className: 'btn btn-secondary', onClick: onCancel }, 'Annuler'), e('button', { type: 'submit', className: 'btn btn-primary', disabled: !name.trim() }, product ? 'Enregistrer' : 'Créer'))
-    )
-  );
-}
-
-function GroupForm({ group, onSave, onCancel }) {
-  const [name, setName] = useState(group?.name || '');
-  const handleSubmit = (ev) => { ev.preventDefault(); if (!name.trim()) return; onSave({ id: group?.id, name: name.trim() }); };
-
-  return e('div', { className: 'form-page' },
-    e('div', { className: 'form-header' }, e('button', { className: 'btn-icon', onClick: onCancel }, icon('back')), e('h1', null, group ? 'Modifier le groupe' : 'Nouveau groupe')),
-    e('form', { onSubmit: handleSubmit },
-      e('div', { className: 'form-group' }, e('label', null, 'Nom du groupe'), e('input', { type: 'text', value: name, onChange: ev => setName(ev.target.value), placeholder: 'Ex: Entretien', required: true })),
-      e('div', { className: 'form-actions' }, e('button', { type: 'button', className: 'btn btn-secondary', onClick: onCancel }, 'Annuler'), e('button', { type: 'submit', className: 'btn btn-primary', disabled: !name.trim() }, group ? 'Enregistrer' : 'Créer'))
-    )
+    h(ConfirmDialog, { isOpen: deleteConfirm !== null, onClose: function() { setDeleteConfirm(null); setDeleteType(null); }, onConfirm: handleDelete, title: deleteType === 'group' ? 'Supprimer le groupe' : 'Supprimer le produit', message: deleteType === 'group' ? 'Les produits seront conservés sans groupe.' : 'Êtes-vous sûr ?' })
   );
 }
 
 // ==================== SHOPPING LIST TAB ====================
-function ShoppingListTab({ recipes, ingredients, aisles, recurringProducts, productGroups }) {
+function ShoppingListTab(props) {
+  const { recipes, ingredients, aisles, recurringProducts, productGroups } = props;
+  const safeRecipes = recipes || [];
+  const safeIngredients = ingredients || [];
+  const safeAisles = aisles || [];
+  const safeRecurring = recurringProducts || [];
+  const safeGroups = productGroups || [];
+
   const savedList = loadFromStorage(STORAGE_KEYS.currentList, null);
   const [step, setStep] = useState(savedList ? 'list' : 'select');
-  const [selectedRecipes, setSelectedRecipes] = useState(savedList?.selectedRecipes || []);
-  const [selectedRecurring, setSelectedRecurring] = useState(savedList?.selectedRecurring || []);
-  const [checkedItems, setCheckedItems] = useState(savedList?.checkedItems || {});
+  const [selectedRecipes, setSelectedRecipes] = useState(savedList ? savedList.selectedRecipes : []);
+  const [selectedRecurring, setSelectedRecurring] = useState(savedList ? savedList.selectedRecurring : []);
+  const [checkedItems, setCheckedItems] = useState(savedList ? savedList.checkedItems : {});
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
     if (step === 'list' && selectedRecipes.length > 0) {
-      saveToStorage(STORAGE_KEYS.currentList, { selectedRecipes, selectedRecurring, checkedItems });
+      saveToStorage(STORAGE_KEYS.currentList, { selectedRecipes: selectedRecipes, selectedRecurring: selectedRecurring, checkedItems: checkedItems });
     }
   }, [step, selectedRecipes, selectedRecurring, checkedItems]);
 
   const toggleRecipe = (id) => setSelectedRecipes(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   const toggleRecurring = (id) => setSelectedRecurring(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-  const toggleChecked = (key) => setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleChecked = (key) => setCheckedItems(prev => { const newState = {}; Object.assign(newState, prev); newState[key] = !prev[key]; return newState; });
 
-  const selectedRecipeNames = useMemo(() => selectedRecipes.map(id => recipes.find(r => r.id === id)?.name).filter(Boolean), [selectedRecipes, recipes]);
+  const selectedRecipeNames = useMemo(() => selectedRecipes.map(id => { const r = safeRecipes.find(r => r.id === id); return r ? r.name : null; }).filter(Boolean), [selectedRecipes, safeRecipes]);
 
   const shoppingList = useMemo(() => {
     if (step !== 'list') return { byAisle: {}, recurring: [] };
     const ingredientCounts = {};
     selectedRecipes.forEach(recipeId => {
-      const recipe = recipes.find(r => r.id === recipeId);
-      if (recipe) recipe.ingredientIds.forEach(ingId => { ingredientCounts[ingId] = (ingredientCounts[ingId] || 0) + 1; });
+      const recipe = safeRecipes.find(r => r.id === recipeId);
+      if (recipe && recipe.ingredientIds) recipe.ingredientIds.forEach(ingId => { ingredientCounts[ingId] = (ingredientCounts[ingId] || 0) + 1; });
     });
     const byAisle = {};
-    Object.entries(ingredientCounts).forEach(([ingId, count]) => {
-      const ingredient = ingredients.find(i => i.id === ingId);
+    Object.entries(ingredientCounts).forEach(function([ingId, count]) {
+      const ingredient = safeIngredients.find(i => i.id === ingId);
       if (ingredient) {
-        const aisle = aisles.find(a => a.id === ingredient.aisleId);
-        const aisleKey = aisle?.id || 'autres';
+        const aisle = safeAisles.find(a => a.id === ingredient.aisleId);
+        const aisleKey = aisle ? aisle.id : 'autres';
         if (!byAisle[aisleKey]) byAisle[aisleKey] = { aisle: aisle || { id: 'autres', name: 'Autres', color: '#94a3b8' }, items: [] };
-        byAisle[aisleKey].items.push({ id: ingredient.id, name: ingredient.name, count });
+        byAisle[aisleKey].items.push({ id: ingredient.id, name: ingredient.name, count: count });
       }
     });
     Object.values(byAisle).forEach(group => { group.items.sort((a, b) => a.name.localeCompare(b.name)); });
-    const recurring = selectedRecurring.map(id => recurringProducts.find(p => p.id === id)).filter(Boolean);
-    return { byAisle, recurring };
-  }, [step, selectedRecipes, selectedRecurring, recipes, ingredients, aisles, recurringProducts]);
+    const recurring = selectedRecurring.map(id => safeRecurring.find(p => p.id === id)).filter(Boolean);
+    return { byAisle: byAisle, recurring: recurring };
+  }, [step, selectedRecipes, selectedRecurring, safeRecipes, safeIngredients, safeAisles, safeRecurring]);
 
   const copyList = () => {
     let text = '🛒 Liste de courses\n\n';
@@ -537,9 +657,9 @@ function ShoppingListTab({ recipes, ingredients, aisles, recurringProducts, prod
       selectedRecipeNames.forEach(name => { text += '  • ' + name + '\n'; });
       text += '\n';
     }
-    Object.values(shoppingList.byAisle).forEach(({ aisle, items }) => {
-      text += '📍 ' + aisle.name + '\n';
-      items.forEach(item => {
+    Object.values(shoppingList.byAisle).forEach(function(data) {
+      text += '📍 ' + data.aisle.name + '\n';
+      data.items.forEach(item => {
         const prefix = item.count > 1 ? '×' + item.count + ' ' : '';
         const checked = checkedItems['ing-' + item.id] ? '✓ ' : '○ ';
         text += '  ' + checked + prefix + item.name + '\n';
@@ -567,19 +687,19 @@ function ShoppingListTab({ recipes, ingredients, aisles, recurringProducts, prod
 
   const groupedRecurring = useMemo(() => {
     const groups = { ungrouped: [] };
-    productGroups.forEach(g => { groups[g.id] = { group: g, items: [] }; });
-    recurringProducts.forEach(product => {
+    safeGroups.forEach(g => { groups[g.id] = { group: g, items: [] }; });
+    safeRecurring.forEach(product => {
       if (product.groupId && groups[product.groupId]) groups[product.groupId].items.push(product);
       else groups.ungrouped.push(product);
     });
     return groups;
-  }, [recurringProducts, productGroups]);
+  }, [safeRecurring, safeGroups]);
 
   // STEP: SELECT RECIPES
   if (step === 'select') {
     return e('div', { className: 'tab-content' },
       e('div', { className: 'tab-header' }, e('h1', null, 'Liste de courses')),
-      recipes.length === 0
+      safeRecipes.length === 0
         ? e('div', { className: 'empty-state' },
             e('div', { className: 'empty-icon' }, icon('list')),
             e('p', null, "Créez d'abord des recettes"),
@@ -588,19 +708,19 @@ function ShoppingListTab({ recipes, ingredients, aisles, recurringProducts, prod
         : e('div', null,
             e('p', { className: 'step-instruction' }, 'Sélectionnez les recettes pour cette semaine :'),
             e('div', { className: 'recipes-select-grid' },
-              recipes.map(recipe =>
-                e('div', { key: recipe.id, className: 'recipe-select-card ' + (selectedRecipes.includes(recipe.id) ? 'selected' : ''), onClick: () => toggleRecipe(recipe.id) },
+              safeRecipes.map(function(recipe) {
+                return e('div', { key: recipe.id, className: 'recipe-select-card ' + (selectedRecipes.includes(recipe.id) ? 'selected' : ''), onClick: function() { toggleRecipe(recipe.id); } },
                   e('div', { className: 'recipe-select-image' },
                     recipe.image ? e('img', { src: recipe.image, alt: recipe.name }) : e('div', { className: 'recipe-image-placeholder' }, icon('image')),
-                    selectedRecipes.includes(recipe.id) && e('div', { className: 'recipe-select-check' }, icon('check'))
+                    selectedRecipes.includes(recipe.id) ? e('div', { className: 'recipe-select-check' }, icon('check')) : null
                   ),
                   e('span', { className: 'recipe-select-name' }, recipe.name)
-                )
-              )
+                );
+              })
             ),
             e('div', { className: 'step-actions' },
-              e('button', { className: 'btn btn-primary btn-large', disabled: selectedRecipes.length === 0, onClick: () => setStep(recurringProducts.length > 0 ? 'recurring' : 'list') },
-                recurringProducts.length > 0 ? 'Suivant' : 'Générer la liste',
+              e('button', { className: 'btn btn-primary btn-large', disabled: selectedRecipes.length === 0, onClick: function() { setStep(safeRecurring.length > 0 ? 'recurring' : 'list'); } },
+                safeRecurring.length > 0 ? 'Suivant' : 'Générer la liste',
                 e('span', { className: 'btn-badge' }, selectedRecipes.length)
               )
             )
@@ -612,38 +732,38 @@ function ShoppingListTab({ recipes, ingredients, aisles, recurringProducts, prod
   if (step === 'recurring') {
     return e('div', { className: 'tab-content' },
       e('div', { className: 'tab-header' },
-        e('button', { className: 'btn-icon', onClick: () => setStep('select') }, icon('back')),
+        e('button', { className: 'btn-icon', onClick: function() { setStep('select'); } }, icon('back')),
         e('h1', null, 'Produits suggérés')
       ),
       e('p', { className: 'step-instruction' }, 'Cochez les produits à ajouter :'),
       e('div', { className: 'recurring-select-list' },
-        productGroups.map(group => {
-          const items = groupedRecurring[group.id]?.items || [];
+        safeGroups.map(function(group) {
+          const items = groupedRecurring[group.id] ? groupedRecurring[group.id].items : [];
           if (items.length === 0) return null;
           return e('div', { key: group.id, className: 'recurring-group' },
             e('h3', null, group.name),
-            items.map(product =>
-              e('label', { key: product.id, className: 'recurring-item' },
-                e('input', { type: 'checkbox', checked: selectedRecurring.includes(product.id), onChange: () => toggleRecurring(product.id) }),
+            items.map(function(product) {
+              return e('label', { key: product.id, className: 'recurring-item' },
+                e('input', { type: 'checkbox', checked: selectedRecurring.includes(product.id), onChange: function() { toggleRecurring(product.id); } }),
                 e('span', { className: 'checkbox-custom' }),
                 e('span', null, product.name)
-              )
-            )
+              );
+            })
           );
         }),
-        groupedRecurring.ungrouped.length > 0 && e('div', { className: 'recurring-group' },
+        groupedRecurring.ungrouped.length > 0 ? e('div', { className: 'recurring-group' },
           e('h3', null, 'Autres'),
-          groupedRecurring.ungrouped.map(product =>
-            e('label', { key: product.id, className: 'recurring-item' },
-              e('input', { type: 'checkbox', checked: selectedRecurring.includes(product.id), onChange: () => toggleRecurring(product.id) }),
+          groupedRecurring.ungrouped.map(function(product) {
+            return e('label', { key: product.id, className: 'recurring-item' },
+              e('input', { type: 'checkbox', checked: selectedRecurring.includes(product.id), onChange: function() { toggleRecurring(product.id); } }),
               e('span', { className: 'checkbox-custom' }),
               e('span', null, product.name)
-            )
-          )
-        )
+            );
+          })
+        ) : null
       ),
       e('div', { className: 'step-actions' },
-        e('button', { className: 'btn btn-primary btn-large', onClick: () => setStep('list') }, 'Générer la liste')
+        e('button', { className: 'btn btn-primary btn-large', onClick: function() { setStep('list'); } }, 'Générer la liste')
       )
     );
   }
@@ -655,60 +775,70 @@ function ShoppingListTab({ recipes, ingredients, aisles, recurringProducts, prod
       e('button', { className: 'btn btn-secondary btn-with-icon', onClick: copyList }, icon('copy'), e('span', null, 'Copier'))
     ),
     e('div', { className: 'shopping-list' },
-      Object.values(shoppingList.byAisle).map(({ aisle, items }) =>
-        e('div', { key: aisle.id, className: 'shopping-aisle' },
-          e('div', { className: 'shopping-aisle-header', style: { '--aisle-color': aisle.color } },
-            e('span', { className: 'aisle-dot' }), e('h3', null, aisle.name)
+      Object.values(shoppingList.byAisle).map(function(data) {
+        return e('div', { key: data.aisle.id, className: 'shopping-aisle' },
+          e('div', { className: 'shopping-aisle-header', style: { '--aisle-color': data.aisle.color } },
+            e('span', { className: 'aisle-dot' }), e('h3', null, data.aisle.name)
           ),
           e('div', { className: 'shopping-items' },
-            items.map(item =>
-              e('label', { key: item.id, className: 'shopping-item ' + (checkedItems['ing-' + item.id] ? 'checked' : '') },
-                e('input', { type: 'checkbox', checked: checkedItems['ing-' + item.id] || false, onChange: () => toggleChecked('ing-' + item.id) }),
+            data.items.map(function(item) {
+              return e('label', { key: item.id, className: 'shopping-item ' + (checkedItems['ing-' + item.id] ? 'checked' : '') },
+                e('input', { type: 'checkbox', checked: checkedItems['ing-' + item.id] || false, onChange: function() { toggleChecked('ing-' + item.id); } }),
                 e('span', { className: 'checkbox-custom' }),
-                e('span', { className: 'item-name' }, item.count > 1 && e('span', { className: 'item-count' }, '×' + item.count), item.name)
-              )
-            )
+                e('span', { className: 'item-name' }, item.count > 1 ? e('span', { className: 'item-count' }, '×' + item.count) : null, item.name)
+              );
+            })
           )
-        )
-      ),
-      shoppingList.recurring.length > 0 && e('div', { className: 'shopping-aisle' },
+        );
+      }),
+      shoppingList.recurring.length > 0 ? e('div', { className: 'shopping-aisle' },
         e('div', { className: 'shopping-aisle-header', style: { '--aisle-color': '#6366f1' } },
           e('span', { className: 'aisle-dot' }), e('h3', null, 'Autres produits')
         ),
         e('div', { className: 'shopping-items' },
-          shoppingList.recurring.map(product =>
-            e('label', { key: product.id, className: 'shopping-item ' + (checkedItems['rec-' + product.id] ? 'checked' : '') },
-              e('input', { type: 'checkbox', checked: checkedItems['rec-' + product.id] || false, onChange: () => toggleChecked('rec-' + product.id) }),
+          shoppingList.recurring.map(function(product) {
+            return e('label', { key: product.id, className: 'shopping-item ' + (checkedItems['rec-' + product.id] ? 'checked' : '') },
+              e('input', { type: 'checkbox', checked: checkedItems['rec-' + product.id] || false, onChange: function() { toggleChecked('rec-' + product.id); } }),
               e('span', { className: 'checkbox-custom' }),
               e('span', { className: 'item-name' }, product.name)
-            )
-          )
+            );
+          })
         )
-      ),
-      selectedRecipeNames.length > 0 && e('div', { className: 'recipes-summary' },
+      ) : null,
+      selectedRecipeNames.length > 0 ? e('div', { className: 'recipes-summary' },
         e('h4', null, '📋 Recettes prévues'),
-        e('ul', null, selectedRecipeNames.map((name, i) => e('li', { key: i }, name)))
-      ),
+        e('ul', null, selectedRecipeNames.map(function(name, i) { return e('li', { key: i }, name); }))
+      ) : null,
       e('div', { className: 'list-actions' },
-        e('button', { className: 'btn btn-outline-danger btn-large', onClick: () => setConfirmClear(true) }, icon('trash'), e('span', null, 'Vider la liste'))
+        e('button', { className: 'btn btn-outline-danger btn-large', onClick: function() { setConfirmClear(true); } }, icon('trash'), e('span', null, 'Vider la liste'))
       )
     ),
-    ConfirmDialog({ isOpen: confirmClear, onClose: () => setConfirmClear(false), onConfirm: clearList, title: "Vider la liste", message: "Voulez-vous vraiment vider la liste ?", confirmText: "Vider" }),
-    Toast({ message: toast.message, isVisible: toast.visible })
+    h(ConfirmDialog, { isOpen: confirmClear, onClose: function() { setConfirmClear(false); }, onConfirm: clearList, title: "Vider la liste", message: "Voulez-vous vraiment vider la liste ?", confirmText: "Vider" }),
+    h(Toast, { message: toast.message, isVisible: toast.visible })
   );
 }
 
 // ==================== SETTINGS TAB ====================
-function SettingsTab({ aisles, setAisles, ingredients, setIngredients, recipes, setRecipes, recurringProducts, setRecurringProducts, productGroups, setProductGroups }) {
+function SettingsTab(props) {
+  const { aisles, setAisles, ingredients, setIngredients, recipes, setRecipes, recurringProducts, setRecurringProducts, productGroups, setProductGroups } = props;
   const [toast, setToast] = useState({ visible: false, message: '' });
-  const showToast = (message) => { setToast({ visible: true, message }); setTimeout(() => setToast({ visible: false, message: '' }), 2500); };
+  
+  const showToast = (message) => { 
+    setToast({ visible: true, message: message }); 
+    setTimeout(() => setToast({ visible: false, message: '' }), 2500); 
+  };
 
   const exportData = () => {
-    const data = { version: 1, exportDate: new Date().toISOString(), aisles, ingredients, recipes, recurringProducts, productGroups };
+    const data = { version: 1, exportDate: new Date().toISOString(), aisles: aisles, ingredients: ingredients, recipes: recipes, recurringProducts: recurringProducts, productGroups: productGroups };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'mes-courses-backup-' + new Date().toISOString().split('T')[0] + '.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    const a = document.createElement('a'); 
+    a.href = url; 
+    a.download = 'mes-courses-backup-' + new Date().toISOString().split('T')[0] + '.json';
+    document.body.appendChild(a); 
+    a.click(); 
+    document.body.removeChild(a); 
+    URL.revokeObjectURL(url);
     showToast('Données exportées !');
   };
 
@@ -737,10 +867,10 @@ function SettingsTab({ aisles, setAisles, ingredients, setIngredients, recipes, 
       e('div', { className: 'settings-section-header' }, e('h3', null, '📊 Statistiques')),
       e('div', { className: 'settings-section-body' },
         e('div', { className: 'settings-stats' },
-          e('div', { className: 'stat-card' }, e('div', { className: 'stat-value' }, recipes.length), e('div', { className: 'stat-label' }, 'Recettes')),
-          e('div', { className: 'stat-card' }, e('div', { className: 'stat-value' }, ingredients.length), e('div', { className: 'stat-label' }, 'Ingrédients')),
-          e('div', { className: 'stat-card' }, e('div', { className: 'stat-value' }, recurringProducts.length), e('div', { className: 'stat-label' }, 'Produits récurrents')),
-          e('div', { className: 'stat-card' }, e('div', { className: 'stat-value' }, aisles.length), e('div', { className: 'stat-label' }, 'Rayons'))
+          e('div', { className: 'stat-card' }, e('div', { className: 'stat-value' }, (recipes || []).length), e('div', { className: 'stat-label' }, 'Recettes')),
+          e('div', { className: 'stat-card' }, e('div', { className: 'stat-value' }, (ingredients || []).length), e('div', { className: 'stat-label' }, 'Ingrédients')),
+          e('div', { className: 'stat-card' }, e('div', { className: 'stat-value' }, (recurringProducts || []).length), e('div', { className: 'stat-label' }, 'Produits récurrents')),
+          e('div', { className: 'stat-card' }, e('div', { className: 'stat-value' }, (aisles || []).length), e('div', { className: 'stat-label' }, 'Rayons'))
         )
       )
     ),
@@ -757,24 +887,24 @@ function SettingsTab({ aisles, setAisles, ingredients, setIngredients, recipes, 
         )
       )
     ),
-    Toast({ message: toast.message, isVisible: toast.visible })
+    h(Toast, { message: toast.message, isVisible: toast.visible })
   );
 }
 
 // ==================== MAIN APP ====================
 function App() {
   const [activeTab, setActiveTab] = useState('list');
-  const [aisles, setAisles] = useState(() => loadFromStorage(STORAGE_KEYS.aisles, DEFAULT_AISLES));
-  const [ingredients, setIngredients] = useState(() => loadFromStorage(STORAGE_KEYS.ingredients, DEFAULT_INGREDIENTS));
-  const [recipes, setRecipes] = useState(() => loadFromStorage(STORAGE_KEYS.recipes, []));
-  const [recurringProducts, setRecurringProducts] = useState(() => loadFromStorage(STORAGE_KEYS.recurringProducts, []));
-  const [productGroups, setProductGroups] = useState(() => loadFromStorage(STORAGE_KEYS.productGroups, []));
+  const [aisles, setAisles] = useState(function() { return loadFromStorage(STORAGE_KEYS.aisles, DEFAULT_AISLES); });
+  const [ingredients, setIngredients] = useState(function() { return loadFromStorage(STORAGE_KEYS.ingredients, DEFAULT_INGREDIENTS); });
+  const [recipes, setRecipes] = useState(function() { return loadFromStorage(STORAGE_KEYS.recipes, []); });
+  const [recurringProducts, setRecurringProducts] = useState(function() { return loadFromStorage(STORAGE_KEYS.recurringProducts, []); });
+  const [productGroups, setProductGroups] = useState(function() { return loadFromStorage(STORAGE_KEYS.productGroups, []); });
 
-  useEffect(() => { saveToStorage(STORAGE_KEYS.aisles, aisles); }, [aisles]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.ingredients, ingredients); }, [ingredients]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.recipes, recipes); }, [recipes]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.recurringProducts, recurringProducts); }, [recurringProducts]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.productGroups, productGroups); }, [productGroups]);
+  useEffect(function() { saveToStorage(STORAGE_KEYS.aisles, aisles); }, [aisles]);
+  useEffect(function() { saveToStorage(STORAGE_KEYS.ingredients, ingredients); }, [ingredients]);
+  useEffect(function() { saveToStorage(STORAGE_KEYS.recipes, recipes); }, [recipes]);
+  useEffect(function() { saveToStorage(STORAGE_KEYS.recurringProducts, recurringProducts); }, [recurringProducts]);
+  useEffect(function() { saveToStorage(STORAGE_KEYS.productGroups, productGroups); }, [productGroups]);
 
   const tabs = [
     { id: 'recipes', label: 'Recettes', iconName: 'recipes' },
@@ -785,21 +915,21 @@ function App() {
   ];
 
   let content = null;
-  if (activeTab === 'recipes') content = RecipesTab({ recipes, setRecipes, ingredients, aisles });
-  if (activeTab === 'ingredients') content = IngredientsTab({ ingredients, setIngredients, aisles, setAisles });
-  if (activeTab === 'recurring') content = RecurringTab({ recurringProducts, setRecurringProducts, productGroups, setProductGroups });
-  if (activeTab === 'list') content = ShoppingListTab({ recipes, ingredients, aisles, recurringProducts, productGroups });
-  if (activeTab === 'settings') content = SettingsTab({ aisles, setAisles, ingredients, setIngredients, recipes, setRecipes, recurringProducts, setRecurringProducts, productGroups, setProductGroups });
+  if (activeTab === 'recipes') content = h(RecipesTab, { recipes: recipes, setRecipes: setRecipes, ingredients: ingredients, aisles: aisles });
+  if (activeTab === 'ingredients') content = h(IngredientsTab, { ingredients: ingredients, setIngredients: setIngredients, aisles: aisles, setAisles: setAisles });
+  if (activeTab === 'recurring') content = h(RecurringTab, { recurringProducts: recurringProducts, setRecurringProducts: setRecurringProducts, productGroups: productGroups, setProductGroups: setProductGroups });
+  if (activeTab === 'list') content = h(ShoppingListTab, { recipes: recipes, ingredients: ingredients, aisles: aisles, recurringProducts: recurringProducts, productGroups: productGroups });
+  if (activeTab === 'settings') content = h(SettingsTab, { aisles: aisles, setAisles: setAisles, ingredients: ingredients, setIngredients: setIngredients, recipes: recipes, setRecipes: setRecipes, recurringProducts: recurringProducts, setRecurringProducts: setRecurringProducts, productGroups: productGroups, setProductGroups: setProductGroups });
 
   return e('div', { className: 'app' },
     e('main', { className: 'app-main' }, content),
     e('nav', { className: 'bottom-nav' },
-      tabs.map(tab =>
-        e('button', { key: tab.id, className: 'nav-item ' + (activeTab === tab.id ? 'active ' : '') + (tab.primary ? 'nav-primary' : ''), onClick: () => setActiveTab(tab.id) },
+      tabs.map(function(tab) {
+        return e('button', { key: tab.id, className: 'nav-item ' + (activeTab === tab.id ? 'active ' : '') + (tab.primary ? 'nav-primary' : ''), onClick: function() { setActiveTab(tab.id); } },
           e('span', { className: 'nav-icon' }, icon(tab.iconName)),
           e('span', { className: 'nav-label' }, tab.label)
-        )
-      )
+        );
+      })
     )
   );
 }
