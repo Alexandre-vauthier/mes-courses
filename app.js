@@ -1,4 +1,4 @@
-const { useState, useEffect, useMemo, createElement: h } = React;
+const { useState, useEffect, useRef, useMemo, createElement: h } = React;
 const e = (tag, props, ...children) => h(tag, props, ...children.flat().filter(c => c != null));
 
 const DEFAULT_AISLES = [
@@ -718,9 +718,38 @@ function ShoppingListTab(props) {
                 );
               })
             ),
+            safeRecurring.length > 0 ? e('div', { className: 'recurring-section' },
+              e('p', { className: 'step-instruction' }, 'Produits suggérés :'),
+              e('div', { className: 'recurring-select-list' },
+                safeGroups.map(function(group) {
+                  var items = groupedRecurring[group.id] ? groupedRecurring[group.id].items : [];
+                  if (items.length === 0) return null;
+                  return e('div', { key: group.id, className: 'recurring-group' },
+                    e('h3', null, group.name),
+                    items.map(function(product) {
+                      return e('label', { key: product.id, className: 'recurring-item' },
+                        e('input', { type: 'checkbox', checked: selectedRecurring.includes(product.id), onChange: function() { toggleRecurring(product.id); } }),
+                        e('span', { className: 'checkbox-custom' }),
+                        e('span', null, product.name)
+                      );
+                    })
+                  );
+                }),
+                groupedRecurring.ungrouped.length > 0 ? e('div', { className: 'recurring-group' },
+                  e('h3', null, 'Autres'),
+                  groupedRecurring.ungrouped.map(function(product) {
+                    return e('label', { key: product.id, className: 'recurring-item' },
+                      e('input', { type: 'checkbox', checked: selectedRecurring.includes(product.id), onChange: function() { toggleRecurring(product.id); } }),
+                      e('span', { className: 'checkbox-custom' }),
+                      e('span', null, product.name)
+                    );
+                  })
+                ) : null
+              )
+            ) : null,
             e('div', { className: 'step-actions' },
-              e('button', { className: 'btn btn-primary btn-large', disabled: selectedRecipes.length === 0, onClick: function() { setStep(safeRecurring.length > 0 ? 'recurring' : 'list'); } },
-                safeRecurring.length > 0 ? 'Suivant' : 'Générer la liste',
+              e('button', { className: 'btn btn-primary btn-large', disabled: selectedRecipes.length === 0, onClick: function() { setStep('list'); var main = document.querySelector('.app-main'); if (main) main.scrollTop = 0; } },
+                'Générer la liste',
                 e('span', { className: 'btn-badge' }, selectedRecipes.length)
               )
             )
@@ -728,53 +757,20 @@ function ShoppingListTab(props) {
     );
   }
 
-  // STEP: SELECT RECURRING
-  if (step === 'recurring') {
-    return e('div', { className: 'tab-content' },
-      e('div', { className: 'tab-header' },
-        e('button', { className: 'btn-icon', onClick: function() { setStep('select'); } }, icon('back')),
-        e('h1', null, 'Produits suggérés')
-      ),
-      e('p', { className: 'step-instruction' }, 'Cochez les produits à ajouter :'),
-      e('div', { className: 'recurring-select-list' },
-        safeGroups.map(function(group) {
-          const items = groupedRecurring[group.id] ? groupedRecurring[group.id].items : [];
-          if (items.length === 0) return null;
-          return e('div', { key: group.id, className: 'recurring-group' },
-            e('h3', null, group.name),
-            items.map(function(product) {
-              return e('label', { key: product.id, className: 'recurring-item' },
-                e('input', { type: 'checkbox', checked: selectedRecurring.includes(product.id), onChange: function() { toggleRecurring(product.id); } }),
-                e('span', { className: 'checkbox-custom' }),
-                e('span', null, product.name)
-              );
-            })
-          );
-        }),
-        groupedRecurring.ungrouped.length > 0 ? e('div', { className: 'recurring-group' },
-          e('h3', null, 'Autres'),
-          groupedRecurring.ungrouped.map(function(product) {
-            return e('label', { key: product.id, className: 'recurring-item' },
-              e('input', { type: 'checkbox', checked: selectedRecurring.includes(product.id), onChange: function() { toggleRecurring(product.id); } }),
-              e('span', { className: 'checkbox-custom' }),
-              e('span', null, product.name)
-            );
-          })
-        ) : null
-      ),
-      e('div', { className: 'step-actions' },
-        e('button', { className: 'btn btn-primary btn-large', onClick: function() { setStep('list'); } }, 'Générer la liste')
-      )
-    );
-  }
-
   // STEP: SHOW LIST
   return e('div', { className: 'tab-content' },
     e('div', { className: 'tab-header' },
       e('h1', null, 'Ma liste'),
-      e('button', { className: 'btn btn-secondary btn-with-icon', onClick: copyList }, icon('copy'), e('span', null, 'Copier'))
+      e('div', { className: 'header-actions' },
+        e('button', { className: 'btn btn-secondary btn-with-icon', onClick: function() { setStep('select'); } }, icon('edit'), e('span', null, 'Modifier')),
+        e('button', { className: 'btn btn-secondary btn-with-icon', onClick: copyList }, icon('copy'), e('span', null, 'Copier'))
+      )
     ),
     e('div', { className: 'shopping-list' },
+      selectedRecipeNames.length > 0 ? e('div', { className: 'recipes-summary' },
+        e('h4', null, '📋 Recettes prévues'),
+        e('ul', null, selectedRecipeNames.map(function(name, i) { return e('li', { key: i }, name); }))
+      ) : null,
       Object.values(shoppingList.byAisle).map(function(data) {
         return e('div', { key: data.aisle.id, className: 'shopping-aisle' },
           e('div', { className: 'shopping-aisle-header', style: { '--aisle-color': data.aisle.color } },
@@ -804,10 +800,6 @@ function ShoppingListTab(props) {
             );
           })
         )
-      ) : null,
-      selectedRecipeNames.length > 0 ? e('div', { className: 'recipes-summary' },
-        e('h4', null, '📋 Recettes prévues'),
-        e('ul', null, selectedRecipeNames.map(function(name, i) { return e('li', { key: i }, name); }))
       ) : null,
       e('div', { className: 'list-actions' },
         e('button', { className: 'btn btn-outline-danger btn-large', onClick: function() { setConfirmClear(true); } }, icon('trash'), e('span', null, 'Vider la liste'))

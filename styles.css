@@ -567,7 +567,7 @@ body {
 
 .step-actions {
   position: sticky;
-  bottom: calc(var(--nav-height) + 16px);
+  bottom: 16px;
   padding: 16px 0;
   background: linear-gradient(transparent, var(--bg-primary) 20%);
 }
