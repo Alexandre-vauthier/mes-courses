@@ -609,7 +609,7 @@ function ShoppingListTab(props) {
   const safeGroups = productGroups || [];
 
   const savedList = loadFromStorage(STORAGE_KEYS.currentList, null);
-  const [step, setStep] = useState(savedList ? 'list' : 'select');
+  const [step, setStep] = useState(savedList ? (savedList.step || 'list') : 'select');
   const [selectedRecipes, setSelectedRecipes] = useState(savedList ? savedList.selectedRecipes : []);
   const [selectedRecurring, setSelectedRecurring] = useState(savedList ? savedList.selectedRecurring : []);
   const [checkedItems, setCheckedItems] = useState(savedList ? savedList.checkedItems : {});
@@ -617,8 +617,8 @@ function ShoppingListTab(props) {
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
-    if (step === 'list' && selectedRecipes.length > 0) {
-      saveToStorage(STORAGE_KEYS.currentList, { selectedRecipes: selectedRecipes, selectedRecurring: selectedRecurring, checkedItems: checkedItems });
+    if (selectedRecipes.length > 0 || selectedRecurring.length > 0) {
+      saveToStorage(STORAGE_KEYS.currentList, { step: step, selectedRecipes: selectedRecipes, selectedRecurring: selectedRecurring, checkedItems: checkedItems });
     }
   }, [step, selectedRecipes, selectedRecurring, checkedItems]);
 
@@ -683,6 +683,7 @@ function ShoppingListTab(props) {
     localStorage.removeItem(STORAGE_KEYS.currentList);
     setStep('select'); setSelectedRecipes([]); setSelectedRecurring([]); setCheckedItems({});
     setConfirmClear(false);
+    var main = document.querySelector('.app-main'); if (main) main.scrollTop = 0;
   };
 
   const groupedRecurring = useMemo(() => {
